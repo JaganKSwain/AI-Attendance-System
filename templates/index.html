@@ -11,7 +11,7 @@
   <div class="app-wrapper">
 
     <!-- Mobile Toggle -->
-    <button class="mobile-toggle" id="mobileToggle" onclick="toggleSidebar()">☰</button>
+    <button class="mobile-toggle" id="mobileToggle" onclick="toggleSidebar()" aria-label="Toggle navigation menu" aria-controls="sidebar" aria-expanded="false">☰</button>
 
     <!-- ========== SIDEBAR ========== -->
     <aside class="sidebar" id="sidebar">
@@ -204,7 +204,10 @@
     }
 
     function toggleSidebar() {
-      document.getElementById('sidebar').classList.toggle('open');
+      var sidebar = document.getElementById('sidebar');
+      var btn = document.getElementById('mobileToggle');
+      sidebar.classList.toggle('open');
+      btn.setAttribute('aria-expanded', sidebar.classList.contains('open'));
     }
 
     // ----- Toast -----
@@ -252,12 +255,13 @@
           }
           var recent = rows.slice(-10).reverse();
           tbody.innerHTML = recent.map(function(r) {
+            var statusClass = r.status === 'Present' ? 'status-present' : 'status-absent';
             return '<tr>' +
               '<td>' + esc(r.name) + '</td>' +
               '<td style="font-family:monospace;">' + esc(r.studentId) + '</td>' +
               '<td>' + esc(r.date) + '</td>' +
               '<td>' + esc(r.time) + '</td>' +
-              '<td><span class="status-badge status-present">● Present</span></td>' +
+              '<td><span class="status-badge ' + statusClass + '">● ' + esc(r.status) + '</span></td>' +
               '</tr>';
           }).join('');
         });
@@ -279,9 +283,15 @@
               '<div class="student-name">' + esc(s.name) + '</div>' +
               '<div class="student-id">ID: ' + esc(s.id) + '</div>' +
               '<div class="student-actions">' +
-              '<button class="btn btn-danger btn-sm" onclick="deleteStudent(\'' + esc(s.id) + '\',\'' + esc(s.name) + '\')">🗑 Remove</button>' +
+              '<button class="btn btn-danger btn-sm" data-student-id="' + esc(s.id) + '" data-student-name="' + esc(s.name) + '">🗑 Remove</button>' +
               '</div></div>';
           }).join('');
+          // Attach click listeners safely (avoids inline JS injection)
+          grid.querySelectorAll('[data-student-id]').forEach(function(btn) {
+            btn.addEventListener('click', function() {
+              deleteStudent(btn.dataset.studentId, btn.dataset.studentName);
+            });
+          });
         })
         .catch(function() { showToast('Failed to load students', 'error'); });
     }
@@ -310,7 +320,7 @@
 
     function deleteStudent(id, name) {
       if (!confirm('Remove student ' + name + ' (ID: ' + id + ')?')) return;
-      fetch('/api/students/' + id, { method: 'DELETE' })
+      fetch('/api/students/' + encodeURIComponent(id), { method: 'DELETE' })
         .then(function(r) { return r.json(); })
         .then(function(data) {
           showToast(data.message || data.error, data.message ? 'success' : 'error');
@@ -329,17 +339,26 @@
         .then(function(rows) {
           var tbody = document.getElementById('attendance-body');
           if (!rows.length) {
-            tbody.innerHTML = '<tr><td colspan="5" class="empty-state" style="padding:40px;">No records found' + (dateVal ? ' for ' + dateVal : '') + '</td></tr>';
+            tbody.innerHTML = '';
+            var tr = document.createElement('tr');
+            var td = document.createElement('td');
+            td.colSpan = 5;
+            td.className = 'empty-state';
+            td.style.padding = '40px';
+            td.textContent = 'No records found' + (dateVal ? ' for ' + dateVal : '');
+            tr.appendChild(td);
+            tbody.appendChild(tr);
             return;
           }
           var sorted = rows.slice().reverse();
           tbody.innerHTML = sorted.map(function(r) {
+            var statusClass = r.status === 'Present' ? 'status-present' : 'status-absent';
             return '<tr>' +
               '<td>' + esc(r.name) + '</td>' +
               '<td style="font-family:monospace;">' + esc(r.studentId) + '</td>' +
               '<td>' + esc(r.date) + '</td>' +
               '<td>' + esc(r.time) + '</td>' +
-              '<td><span class="status-badge status-present">● Present</span></td>' +
+              '<td><span class="status-badge ' + statusClass + '">● ' + esc(r.status) + '</span></td>' +
               '</tr>';
           }).join('');
         })

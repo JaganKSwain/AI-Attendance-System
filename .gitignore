@@ -1,0 +1,14 @@
+# Attendance data (contains personal information)
+attendance.csv
+
+# Known faces directory (contains personal photos)
+known_faces/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# IDE
+.vscode/
+.idea/

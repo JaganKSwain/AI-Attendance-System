@@ -1,11 +1,15 @@
 import csv
 import os
+import re
 import subprocess
 import sys
 import threading
 from datetime import datetime
 
 from flask import Flask, jsonify, render_template, request, send_from_directory
+
+# Allowed photo extensions
+ALLOWED_EXTENSIONS = {".jpg", ".jpeg", ".png"}
 
 # Configuration
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -99,13 +103,30 @@ def add_student():
     if not photo:
         return jsonify({"error": "Photo is required"}), 400
 
+    # Validate student ID: digits only
+    if not re.fullmatch(r"\d+", student_id):
+        return jsonify({"error": "Student ID must contain only digits"}), 400
+
+    # Sanitize name: allow only letters, spaces, hyphens, and periods
+    if not re.fullmatch(r"[A-Za-z .\-]+", student_name):
+        return jsonify({"error": "Name contains invalid characters"}), 400
+
+    # Validate file extension
+    ext = os.path.splitext(photo.filename)[1].lower() if photo.filename else ""
+    if ext not in ALLOWED_EXTENSIONS:
+        return jsonify({"error": f"Unsupported image format. Allowed: {', '.join(ALLOWED_EXTENSIONS)}"}), 400
+
     # Ensure directory exists
     os.makedirs(KNOWN_FACES_DIR, exist_ok=True)
 
-    safe_name = student_name.replace(" ", "_")
-    ext = os.path.splitext(photo.filename)[1] or ".jpg"
+    safe_name = re.sub(r"[^A-Za-z0-9_]", "_", student_name.replace(" ", "_"))
     filename = f"{student_id}_{safe_name}{ext}"
     filepath = os.path.join(KNOWN_FACES_DIR, filename)
+
+    # Final safety check: ensure the resolved path stays within KNOWN_FACES_DIR
+    if not os.path.realpath(filepath).startswith(os.path.realpath(KNOWN_FACES_DIR)):
+        return jsonify({"error": "Invalid filename"}), 400
+
     photo.save(filepath)
 
     return jsonify({
@@ -144,12 +165,14 @@ def get_stats():
     today_rows = _read_attendance(today)
     today_present = len(today_rows)
 
-    # Overall attendance rate: unique (student, date) pairs / (total_students * unique dates)
+    # Overall attendance rate: unique (student, date) Present pairs / (total_students * unique dates)
     all_rows = _read_attendance()
     unique_dates = set(r["date"] for r in all_rows)
     total_possible = total_students * len(unique_dates) if unique_dates and total_students else 1
-    total_present = len(all_rows)
-    attendance_rate = round((total_present / total_possible) * 100, 1) if total_possible else 0
+    unique_present = len(set(
+        (r["studentId"], r["date"]) for r in all_rows if r["status"] == "Present"
+    ))
+    attendance_rate = round((unique_present / total_possible) * 100, 1) if total_possible else 0
 
     return jsonify({
         "totalStudents": total_students,
@@ -163,9 +186,8 @@ def get_stats():
 @app.route("/api/attendance/start", methods=["POST"])
 def start_recognition():
     """Launch the mark_attendance.py script in a separate process."""
-    global recognition_running, recognition_error
-
     with recognition_lock:
+        global recognition_running, recognition_error
         if recognition_running:
             return jsonify({"error": "Recognition session already running"}), 409
         recognition_running = True
@@ -173,6 +195,7 @@ def start_recognition():
 
     def _run():
         global recognition_running, recognition_error
+        error_msg = ""
         try:
             # Use CREATE_NEW_CONSOLE on Windows so the OpenCV GUI window
             # gets its own display context and can render properly.
@@ -188,13 +211,14 @@ def start_recognition():
             proc.wait()  # Block until the user closes the OpenCV window
 
             if proc.returncode != 0:
-                recognition_error = f"Process exited with code {proc.returncode}"
-                print(f"Recognition error: {recognition_error}")
+                error_msg = f"Process exited with code {proc.returncode}"
+                print(f"Recognition error: {error_msg}")
         except Exception as e:
-            recognition_error = str(e)
+            error_msg = str(e)
         finally:
             with recognition_lock:
                 recognition_running = False
+                recognition_error = error_msg
 
     thread = threading.Thread(target=_run, daemon=True)
     thread.start()
@@ -204,7 +228,10 @@ def start_recognition():
 
 @app.route("/api/recognition-status", methods=["GET"])
 def recognition_status():
-    return jsonify({"running": recognition_running, "error": recognition_error})
+    with recognition_lock:
+        running = recognition_running
+        error = recognition_error
+    return jsonify({"running": running, "error": error})
 
 
 @app.route("/api/student-photo/<path:filename>")
@@ -215,6 +242,8 @@ def student_photo(filename):
 # Entry point
 if __name__ == "__main__":
     os.makedirs(KNOWN_FACES_DIR, exist_ok=True)
+    debug_mode = os.environ.get("FLASK_DEBUG", "0") == "1"
+    host = os.environ.get("FLASK_HOST", "127.0.0.1")
     print("\n  AI Attendance System")
-    print("  Open http://localhost:5000 in your browser\n")
-    app.run(debug=True, host="0.0.0.0", port=5000)
+    print(f"  Open http://{host}:5000 in your browser\n")
+    app.run(debug=debug_mode, host=host, port=5000)
