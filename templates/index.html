@@ -1,0 +1,442 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="AI-powered attendance system with real-time face recognition" />
+  <title>AI Attendance System</title>
+  <link rel="stylesheet" href="/static/styles.css" />
+</head>
+<body>
+  <div class="app-wrapper">
+
+    <!-- Mobile Toggle -->
+    <button class="mobile-toggle" id="mobileToggle" onclick="toggleSidebar()">☰</button>
+
+    <!-- ========== SIDEBAR ========== -->
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar-brand">
+        <h1>🎓 AI Attendance</h1>
+        <p>Smart Recognition System</p>
+      </div>
+      <nav class="sidebar-nav">
+        <button class="nav-item active" data-page="dashboard" id="nav-dashboard" onclick="showPage('dashboard')">
+          <span class="icon">📊</span> Dashboard
+        </button>
+        <button class="nav-item" data-page="students" id="nav-students" onclick="showPage('students')">
+          <span class="icon">👥</span> Students
+        </button>
+        <button class="nav-item" data-page="attendance" id="nav-attendance" onclick="showPage('attendance')">
+          <span class="icon">📋</span> Attendance
+        </button>
+        <button class="nav-item" data-page="recognition" id="nav-recognition" onclick="showPage('recognition')">
+          <span class="icon">📷</span> Live Recognition
+        </button>
+      </nav>
+    </aside>
+
+    <!-- ========== MAIN CONTENT ========== -->
+    <main class="main-content">
+
+      <!-- ===== DASHBOARD ===== -->
+      <section class="page-section active" id="page-dashboard">
+        <div class="page-header">
+          <div>
+            <h2>Dashboard</h2>
+            <p class="subtitle" id="dashboard-date"></p>
+          </div>
+          <button class="btn btn-primary" onclick="showPage('recognition')">
+            <span>📷</span> Start Recognition
+          </button>
+        </div>
+
+        <div class="stats-grid" id="stats-grid">
+          <div class="stat-card">
+            <div class="stat-icon">👥</div>
+            <div class="stat-value" id="stat-students">—</div>
+            <div class="stat-label">Registered Students</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-icon">✅</div>
+            <div class="stat-value" id="stat-today">—</div>
+            <div class="stat-label">Present Today</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-icon">📈</div>
+            <div class="stat-value" id="stat-rate">—</div>
+            <div class="stat-label">Attendance Rate</div>
+          </div>
+        </div>
+
+        <div class="card">
+          <h3 style="margin-bottom:16px; font-size:1.05rem;">Recent Attendance</h3>
+          <div class="table-wrapper">
+            <table>
+              <thead>
+                <tr>
+                  <th>Name</th><th>Student ID</th><th>Date</th><th>Time</th><th>Status</th>
+                </tr>
+              </thead>
+              <tbody id="recent-attendance-body">
+                <tr><td colspan="5" style="text-align:center;color:var(--text-muted);padding:30px;">Loading…</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- ===== STUDENTS ===== -->
+      <section class="page-section" id="page-students">
+        <div class="page-header">
+          <div>
+            <h2>Students</h2>
+            <p class="subtitle">Manage registered students</p>
+          </div>
+          <button class="btn btn-primary" id="btn-add-student" onclick="openModal()">
+            <span>➕</span> Add Student
+          </button>
+        </div>
+        <div class="students-grid" id="students-grid">
+          <div class="empty-state"><div class="spinner"></div></div>
+        </div>
+      </section>
+
+      <!-- ===== ATTENDANCE ===== -->
+      <section class="page-section" id="page-attendance">
+        <div class="page-header">
+          <div>
+            <h2>Attendance Records</h2>
+            <p class="subtitle">View and filter attendance logs</p>
+          </div>
+        </div>
+
+        <div class="filter-bar">
+          <input type="date" class="form-input" id="filter-date" onchange="loadAttendance()" />
+          <button class="btn btn-secondary" onclick="clearDateFilter()">Clear Filter</button>
+        </div>
+
+        <div class="card" style="padding:0;">
+          <div class="table-wrapper">
+            <table>
+              <thead>
+                <tr>
+                  <th>Name</th><th>Student ID</th><th>Date</th><th>Time</th><th>Status</th>
+                </tr>
+              </thead>
+              <tbody id="attendance-body">
+                <tr><td colspan="5" style="text-align:center;color:var(--text-muted);padding:30px;">Loading…</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- ===== LIVE RECOGNITION ===== -->
+      <section class="page-section" id="page-recognition">
+        <div class="page-header">
+          <div>
+            <h2>Live Recognition</h2>
+            <p class="subtitle">Start a face recognition session</p>
+          </div>
+        </div>
+        <div class="card">
+          <div class="recognition-panel">
+            <div class="rec-icon" id="rec-icon">📷</div>
+            <h3>Face Recognition Session</h3>
+            <p>Click the button below to start a live face recognition session. A camera window will open on your desktop. Students recognized by the camera will be automatically marked present.</p>
+            <button class="btn btn-primary" id="btn-start-rec" onclick="startRecognition()" style="font-size:1rem;padding:14px 32px;">
+              <span>▶</span> Start Session
+            </button>
+            <div class="rec-status idle" id="rec-status">
+              <span class="rec-status-dot"></span>
+              <span id="rec-status-text">Idle</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+    </main>
+  </div>
+
+  <!-- ========== ADD STUDENT MODAL ========== -->
+  <div class="modal-overlay" id="modal-overlay">
+    <div class="modal">
+      <div class="modal-header">
+        <h3>Register New Student</h3>
+        <button class="modal-close" onclick="closeModal()">✕</button>
+      </div>
+      <form id="add-student-form" onsubmit="handleAddStudent(event)">
+        <div class="form-group">
+          <label for="student-name">Full Name</label>
+          <input class="form-input" type="text" id="student-name" placeholder="e.g. John Doe" required />
+        </div>
+        <div class="form-group">
+          <label for="student-id">Student ID</label>
+          <input class="form-input" type="text" id="student-id" placeholder="e.g. 202456001" required />
+        </div>
+        <div class="form-group">
+          <label for="student-photo">Face Photo</label>
+          <input class="form-input" type="file" id="student-photo" accept="image/*" required />
+        </div>
+        <button class="btn btn-primary" type="submit" style="width:100%;justify-content:center;margin-top:8px;">
+          Register Student
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <!-- ========== TOAST CONTAINER ========== -->
+  <div class="toast-container" id="toast-container"></div>
+
+  <!-- ========== JAVASCRIPT ========== -->
+  <script>
+    // ----- Navigation -----
+    function showPage(page) {
+      document.querySelectorAll('.page-section').forEach(s => s.classList.remove('active'));
+      document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+      document.getElementById('page-' + page).classList.add('active');
+      document.querySelector('[data-page="' + page + '"]').classList.add('active');
+      // Load data when switching pages
+      if (page === 'dashboard') loadDashboard();
+      if (page === 'students') loadStudents();
+      if (page === 'attendance') loadAttendance();
+      if (page === 'recognition') checkRecStatus();
+    }
+
+    function toggleSidebar() {
+      document.getElementById('sidebar').classList.toggle('open');
+    }
+
+    // ----- Toast -----
+    function showToast(msg, type) {
+      type = type || 'info';
+      var c = document.getElementById('toast-container');
+      var t = document.createElement('div');
+      t.className = 'toast toast-' + type;
+      t.textContent = msg;
+      c.appendChild(t);
+      setTimeout(function() { t.remove(); }, 3500);
+    }
+
+    // ----- Modal -----
+    function openModal() {
+      document.getElementById('modal-overlay').classList.add('active');
+    }
+    function closeModal() {
+      document.getElementById('modal-overlay').classList.remove('active');
+      document.getElementById('add-student-form').reset();
+    }
+
+    // ----- Dashboard -----
+    function loadDashboard() {
+      var d = new Date();
+      document.getElementById('dashboard-date').textContent =
+        d.toLocaleDateString('en-US', { weekday:'long', year:'numeric', month:'long', day:'numeric' });
+
+      fetch('/api/attendance/stats')
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+          document.getElementById('stat-students').textContent = data.totalStudents;
+          document.getElementById('stat-today').textContent = data.todayPresent;
+          document.getElementById('stat-rate').textContent = data.attendanceRate + '%';
+        })
+        .catch(function() { showToast('Failed to load stats', 'error'); });
+
+      fetch('/api/attendance')
+        .then(function(r) { return r.json(); })
+        .then(function(rows) {
+          var tbody = document.getElementById('recent-attendance-body');
+          if (!rows.length) {
+            tbody.innerHTML = '<tr><td colspan="5" class="empty-state">No attendance records yet</td></tr>';
+            return;
+          }
+          var recent = rows.slice(-10).reverse();
+          tbody.innerHTML = recent.map(function(r) {
+            return '<tr>' +
+              '<td>' + esc(r.name) + '</td>' +
+              '<td style="font-family:monospace;">' + esc(r.studentId) + '</td>' +
+              '<td>' + esc(r.date) + '</td>' +
+              '<td>' + esc(r.time) + '</td>' +
+              '<td><span class="status-badge status-present">● Present</span></td>' +
+              '</tr>';
+          }).join('');
+        });
+    }
+
+    // ----- Students -----
+    function loadStudents() {
+      fetch('/api/students')
+        .then(function(r) { return r.json(); })
+        .then(function(students) {
+          var grid = document.getElementById('students-grid');
+          if (!students.length) {
+            grid.innerHTML = '<div class="empty-state"><div class="empty-icon">👥</div><p>No students registered yet. Click "Add Student" to get started.</p></div>';
+            return;
+          }
+          grid.innerHTML = students.map(function(s) {
+            return '<div class="student-card">' +
+              '<img class="student-avatar" src="/api/student-photo/' + encodeURIComponent(s.photo) + '" alt="' + esc(s.name) + '" onerror="this.src=\'data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 80 80%22><rect fill=%22%231e293b%22 width=%2280%22 height=%2280%22/><text x=%2240%22 y=%2248%22 text-anchor=%22middle%22 fill=%22%2394a3b8%22 font-size=%2228%22>👤</text></svg>\'" />' +
+              '<div class="student-name">' + esc(s.name) + '</div>' +
+              '<div class="student-id">ID: ' + esc(s.id) + '</div>' +
+              '<div class="student-actions">' +
+              '<button class="btn btn-danger btn-sm" onclick="deleteStudent(\'' + esc(s.id) + '\',\'' + esc(s.name) + '\')">🗑 Remove</button>' +
+              '</div></div>';
+          }).join('');
+        })
+        .catch(function() { showToast('Failed to load students', 'error'); });
+    }
+
+    function handleAddStudent(e) {
+      e.preventDefault();
+      var fd = new FormData();
+      fd.append('name', document.getElementById('student-name').value);
+      fd.append('id', document.getElementById('student-id').value);
+      fd.append('photo', document.getElementById('student-photo').files[0]);
+
+      fetch('/api/students', { method: 'POST', body: fd })
+        .then(function(r) { return r.json().then(function(d) { return { ok: r.ok, data: d }; }); })
+        .then(function(res) {
+          if (res.ok) {
+            showToast(res.data.message, 'success');
+            closeModal();
+            loadStudents();
+            loadDashboard();
+          } else {
+            showToast(res.data.error || 'Registration failed', 'error');
+          }
+        })
+        .catch(function() { showToast('Network error', 'error'); });
+    }
+
+    function deleteStudent(id, name) {
+      if (!confirm('Remove student ' + name + ' (ID: ' + id + ')?')) return;
+      fetch('/api/students/' + id, { method: 'DELETE' })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+          showToast(data.message || data.error, data.message ? 'success' : 'error');
+          loadStudents();
+          loadDashboard();
+        })
+        .catch(function() { showToast('Network error', 'error'); });
+    }
+
+    // ----- Attendance -----
+    function loadAttendance() {
+      var dateVal = document.getElementById('filter-date').value;
+      var url = '/api/attendance' + (dateVal ? '?date=' + dateVal : '');
+      fetch(url)
+        .then(function(r) { return r.json(); })
+        .then(function(rows) {
+          var tbody = document.getElementById('attendance-body');
+          if (!rows.length) {
+            tbody.innerHTML = '<tr><td colspan="5" class="empty-state" style="padding:40px;">No records found' + (dateVal ? ' for ' + dateVal : '') + '</td></tr>';
+            return;
+          }
+          var sorted = rows.slice().reverse();
+          tbody.innerHTML = sorted.map(function(r) {
+            return '<tr>' +
+              '<td>' + esc(r.name) + '</td>' +
+              '<td style="font-family:monospace;">' + esc(r.studentId) + '</td>' +
+              '<td>' + esc(r.date) + '</td>' +
+              '<td>' + esc(r.time) + '</td>' +
+              '<td><span class="status-badge status-present">● Present</span></td>' +
+              '</tr>';
+          }).join('');
+        })
+        .catch(function() { showToast('Failed to load records', 'error'); });
+    }
+
+    function clearDateFilter() {
+      document.getElementById('filter-date').value = '';
+      loadAttendance();
+    }
+
+    // ----- Recognition -----
+    function startRecognition() {
+      var btn = document.getElementById('btn-start-rec');
+      btn.disabled = true;
+      btn.innerHTML = '<span class="spinner" style="width:18px;height:18px;border-width:2px;"></span> Starting…';
+
+      fetch('/api/attendance/start', { method: 'POST' })
+        .then(function(r) { return r.json().then(function(d) { return { ok: r.ok, data: d }; }); })
+        .then(function(res) {
+          if (res.ok) {
+            showToast('Recognition session started! Check your desktop.', 'success');
+            setRecStatus(true);
+            pollRecStatus();
+          } else {
+            showToast(res.data.error || 'Failed to start', 'error');
+            btn.disabled = false;
+            btn.innerHTML = '<span>▶</span> Start Session';
+          }
+        })
+        .catch(function() {
+          showToast('Network error', 'error');
+          btn.disabled = false;
+          btn.innerHTML = '<span>▶</span> Start Session';
+        });
+    }
+
+    function setRecStatus(running) {
+      var el = document.getElementById('rec-status');
+      var text = document.getElementById('rec-status-text');
+      var icon = document.getElementById('rec-icon');
+      var btn = document.getElementById('btn-start-rec');
+      if (running) {
+        el.className = 'rec-status running';
+        text.textContent = 'Running — camera window active';
+        icon.classList.add('active');
+        btn.disabled = true;
+        btn.innerHTML = '<span>⏹</span> Session Active';
+      } else {
+        el.className = 'rec-status idle';
+        text.textContent = 'Idle';
+        icon.classList.remove('active');
+        btn.disabled = false;
+        btn.innerHTML = '<span>▶</span> Start Session';
+      }
+    }
+
+    function checkRecStatus() {
+      fetch('/api/recognition-status')
+        .then(function(r) { return r.json(); })
+        .then(function(d) { setRecStatus(d.running); })
+        .catch(function() {});
+    }
+
+    var recPollTimer = null;
+    function pollRecStatus() {
+      if (recPollTimer) clearInterval(recPollTimer);
+      recPollTimer = setInterval(function() {
+        fetch('/api/recognition-status')
+          .then(function(r) { return r.json(); })
+          .then(function(d) {
+            if (!d.running) {
+              setRecStatus(false);
+              clearInterval(recPollTimer);
+              recPollTimer = null;
+              if (d.error) {
+                showToast('Recognition error: ' + d.error.split('\n').pop(), 'error');
+              } else {
+                showToast('Recognition session ended', 'info');
+              }
+              loadDashboard();
+            }
+          });
+      }, 2000);
+    }
+
+    // ----- Helpers -----
+    function esc(s) {
+      var d = document.createElement('div');
+      d.textContent = s || '';
+      return d.innerHTML;
+    }
+
+    // ----- Init -----
+    window.addEventListener('DOMContentLoaded', function() {
+      loadDashboard();
+    });
+  </script>
+</body>
+</html>
